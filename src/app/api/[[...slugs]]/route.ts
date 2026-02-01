@@ -48,6 +48,7 @@ const messages = new Elysia({ prefix: "/messages" }).use(authMiddleware).post(
 
     await redis.expire(`messages: ${roomId}`, remaining);
     await redis.expire(`history:${roomId}`, remaining);
+    await redis.expire(roomId, remaining);
   },
   {
     query: z.object({ roomId: z.string() }),
