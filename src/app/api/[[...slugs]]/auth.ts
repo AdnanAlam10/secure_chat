@@ -27,7 +27,7 @@ export const authMiddleware = new Elysia({ name: "auth" })
     const connected = await redis.hget<string[]>(`meta:${roomId}`, "connected");
 
     if (!connected?.includes(token)) {
-      throw new AuthError("Token not found");
+      throw new AuthError("Invalid token");
     }
 
     return { auth: { roomId, token, connected } };
