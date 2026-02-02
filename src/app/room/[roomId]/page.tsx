@@ -1,9 +1,10 @@
 "use client";
 
 import { useUsername } from "@/hooks/use-username";
+import { useRealtime } from "@/lib/realtime-client";
 import { client } from "@/lib/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { format } from "date-fns";
 
@@ -17,6 +18,8 @@ const Page = () => {
   const params = useParams();
   const roomId = params.roomId as string;
 
+  const router = useRouter();
+
   const { username } = useUsername();
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -24,7 +27,7 @@ const Page = () => {
   const [copyStatus, setCopyStatus] = useState("COPY");
   const [timeRemaining, setTimeRemaining] = useState<number | null>(51);
 
-  const { data: messages } = useQuery({
+  const { data: messages, refetch } = useQuery({
     queryKey: ["messages", roomId],
     queryFn: async () => {
       const res = await client.messages.get({
@@ -41,6 +44,20 @@ const Page = () => {
         { sender: username, text },
         { query: { roomId } },
       );
+    },
+  });
+
+  useRealtime({
+    channels: [roomId],
+    events: ["chat.message", "chat.destroy"],
+    onData: ({ event }) => {
+      if (event === "chat.message") {
+        refetch();
+      }
+
+      if (event === "chat.destroy") {
+        router.push("/?destroyed=true");
+      }
     },
   });
 
