@@ -25,7 +25,7 @@ export const authMiddleware = new Elysia({ name: "auth" })
     }
 
     const connected = await redis.hget<string[]>(
-      `meta: ${roomId}`,
+      `meta:${roomId}`,
       "connected",
     );
 

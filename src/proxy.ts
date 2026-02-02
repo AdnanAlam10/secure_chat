@@ -12,7 +12,7 @@ export const proxy = async (req: NextRequest) => {
   const roomId = roomMatch[1];
 
   const meta = await redis.hgetall<{ connected: string[]; createdAt: number }>(
-    `meta: ${roomId}`,
+    `meta:${roomId}`,
   );
 
   if (!meta) {
@@ -40,7 +40,7 @@ export const proxy = async (req: NextRequest) => {
     sameSite: "strict",
   });
 
-  await redis.hset(`meta: ${roomId}`, {
+  await redis.hset(`meta:${roomId}`, {
     connected: [...meta.connected, token],
   });
 
