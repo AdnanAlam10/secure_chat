@@ -44,6 +44,8 @@ const Page = () => {
         { sender: username, text },
         { query: { roomId } },
       );
+
+      setInput("");
     },
   });
 
