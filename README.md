@@ -2,7 +2,7 @@
 
 A private, self-destructing 1-on-1 chat room with **end-to-end encryption**. The server stores ciphertext only — even with full database access, an attacker cannot read messages.
 
-https://github.com/user-attachments/assets/1430f706-a876-4047-be1e-63019b24b5ef
+<img width="2560" height="1440" alt="demo" src="https://github.com/user-attachments/assets/1430f706-a876-4047-be1e-63019b24b5ef" />
 
 **Live demo:** [secure-chat-liart.vercel.app](https://secure-chat-liart.vercel.app/)
 
