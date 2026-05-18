@@ -21,14 +21,16 @@ function Lobby() {
   const wasDestroyed = searchParams.get("destroyed") === "true";
   const error = searchParams.get("error");
 
-  const { mutate: createRoom } = useMutation({
+  const { mutate: createRoom, isPending: isCreating } = useMutation({
     mutationFn: async () => {
       const res = await client.room.create.post();
-
-      if (res.status === 200) {
-        router.push(`/room/${res.data?.roomId}`);
+      if (res.status !== 200 || !res.data?.roomId) {
+        throw new Error("Failed to create room");
       }
+      return res.data.roomId;
     },
+    onSuccess: (roomId) => router.push(`/room/${roomId}`),
+    onError: () => router.replace("/?error=create-failed"),
   });
 
   return (
@@ -58,6 +60,14 @@ function Lobby() {
             </p>
           </div>
         )}
+        {error === "create-failed" && (
+          <div className="bg-red-950/50 border border-red-900 p-4 text-center">
+            <p className="text-red-500 text-sm font-bold">CREATE FAILED</p>
+            <p className="text-zinc-500 text-xs mt-1">
+              Could not create a room. Try again.
+            </p>
+          </div>
+        )}
 
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-green-500">
@@ -82,9 +92,10 @@ function Lobby() {
 
             <button
               onClick={() => createRoom()}
+              disabled={isCreating}
               className="w-full bg-zinc-100 text-black p-3 text-sm font-bold hover:bg-zinc-50 hover:text-black transition-colors mt-2 cursor-pointer disabled:opacity-50"
             >
-              CREATE SECURE ROOM
+              {isCreating ? "CREATING..." : "CREATE SECURE ROOM"}
             </button>
           </div>
         </div>

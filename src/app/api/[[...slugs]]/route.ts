@@ -10,12 +10,13 @@ const ROOM_TTL_SECONDS = 60 * 10;
 const rooms = new Elysia({ prefix: "/room" })
   .post("/create", async () => {
     const roomId = nanoid();
+    const expiresAt = Date.now() + ROOM_TTL_SECONDS * 1000;
 
     await redis.hset(`meta:${roomId}`, {
       connected: [],
       createdAt: Date.now(),
+      expiresAt,
     });
-
     await redis.expire(`meta:${roomId}`, ROOM_TTL_SECONDS);
 
     return { roomId };
@@ -24,8 +25,11 @@ const rooms = new Elysia({ prefix: "/room" })
   .get(
     "/ttl",
     async ({ auth }) => {
-      const ttl = await redis.ttl(`meta:${auth.roomId}`);
-      return { ttl: ttl > 0 ? ttl : 0 };
+      const expiresAt = await redis.hget<number>(
+        `meta:${auth.roomId}`,
+        "expiresAt",
+      );
+      return { expiresAt: expiresAt ?? 0 };
     },
     { query: z.object({ roomId: z.string() }) },
   )
@@ -37,7 +41,6 @@ const rooms = new Elysia({ prefix: "/room" })
         .emit("chat.destroy", { isDestroyed: true });
 
       await Promise.all([
-        redis.del(auth.roomId),
         redis.del(`meta:${auth.roomId}`),
         redis.del(`messages:${auth.roomId}`),
       ]);
@@ -67,18 +70,13 @@ const messages = new Elysia({ prefix: "/messages" })
         roomId,
       };
 
-      // add message to chat history
-      await redis.rpush(`messages:${roomId}`, {
-        ...message,
-        token: auth.token,
-      });
+      await redis.rpush(`messages:${roomId}`, message);
       await realtime.channel(roomId).emit("chat.message", message);
 
       const remaining = await redis.ttl(`meta:${roomId}`);
-
-      await redis.expire(`messages:${roomId}`, remaining);
-      await redis.expire(`history:${roomId}`, remaining);
-      await redis.expire(roomId, remaining);
+      if (remaining > 0) {
+        await redis.expire(`messages:${roomId}`, remaining);
+      }
     },
     {
       query: z.object({ roomId: z.string() }),
@@ -96,12 +94,7 @@ const messages = new Elysia({ prefix: "/messages" })
         0,
         -1,
       );
-      return {
-        messages: messages.map((m) => ({
-          ...m,
-          token: m.token === auth.token ? auth.token : undefined,
-        })),
-      };
+      return { messages };
     },
     {
       query: z.object({ roomId: z.string() }),

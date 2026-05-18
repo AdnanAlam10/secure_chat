@@ -35,30 +35,30 @@ const Page = () => {
     },
   });
 
-  useEffect(() => {
-    if (ttlData?.ttl !== undefined) setTimeRemaining(ttlData.ttl);
-  }, [ttlData]);
+  const expiresAt = ttlData?.expiresAt;
 
   useEffect(() => {
-    if (timeRemaining === null || timeRemaining < 0) return;
+    if (!expiresAt) return;
 
-    if (timeRemaining === 0) {
-      router.push("/?destroyed=true");
-      return;
-    }
+    const tick = () => {
+      const remaining = Math.max(
+        0,
+        Math.floor((expiresAt - Date.now()) / 1000),
+      );
+      setTimeRemaining(remaining);
+      if (remaining === 0) {
+        router.push("/?destroyed=true");
+        return true;
+      }
+      return false;
+    };
 
+    if (tick()) return;
     const interval = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev === null || prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
+      if (tick()) clearInterval(interval);
     }, 1000);
-
     return () => clearInterval(interval);
-  }, [timeRemaining, router]);
+  }, [expiresAt, router]);
 
   const { data: messages, refetch } = useQuery({
     queryKey: ["messages", roomId],
@@ -119,7 +119,7 @@ const Page = () => {
               <span className="font-bold text-green-500">{roomId}</span>
               <button
                 onClick={copyLink}
-                className="text=[10px] bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
+                className="text-[10px] bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
               >
                 {copyStatus}
               </button>
@@ -215,7 +215,7 @@ const Page = () => {
               inputRef.current?.focus();
             }}
             disabled={!input.trim() || isPending}
-            className="bg-zinc-800 text-zinc-400 px-6 text-sm font-bold hover:text-zinc-200 transtion-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="bg-zinc-800 text-zinc-400 px-6 text-sm font-bold hover:text-zinc-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             SEND
           </button>
