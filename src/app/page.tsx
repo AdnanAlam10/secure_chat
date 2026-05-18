@@ -4,6 +4,7 @@ import { client } from "@/lib/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUsername } from "@/hooks/use-username";
 import { Suspense } from "react";
+import { generateRoomKey } from "@/lib/crypto";
 
 const Page = () => {
   return (
@@ -23,13 +24,14 @@ function Lobby() {
 
   const { mutate: createRoom, isPending: isCreating } = useMutation({
     mutationFn: async () => {
+      const key = await generateRoomKey();
       const res = await client.room.create.post();
       if (res.status !== 200 || !res.data?.roomId) {
         throw new Error("Failed to create room");
       }
-      return res.data.roomId;
+      return { roomId: res.data.roomId, key };
     },
-    onSuccess: (roomId) => router.push(`/room/${roomId}`),
+    onSuccess: ({ roomId, key }) => router.push(`/room/${roomId}#k=${key}`),
     onError: () => router.replace("/?error=create-failed"),
   });
 
@@ -68,6 +70,15 @@ function Lobby() {
             </p>
           </div>
         )}
+        {error === "missing-key" && (
+          <div className="bg-red-950/50 border border-red-900 p-4 text-center">
+            <p className="text-red-500 text-sm font-bold">NO ENCRYPTION KEY</p>
+            <p className="text-zinc-500 text-xs mt-1">
+              The room link is missing its decryption key. Ask the creator for
+              the full link.
+            </p>
+          </div>
+        )}
 
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-green-500">
@@ -75,6 +86,9 @@ function Lobby() {
           </h1>
           <p className="text-zinc-500 text-sm">
             A private, self-destructing chat room.
+          </p>
+          <p className="text-zinc-600 text-xs">
+            🔒 End-to-end encrypted · key never touches the server
           </p>
         </div>
         <div className="border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-md">

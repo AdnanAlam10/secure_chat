@@ -6,11 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@elysiajs/eden": "^1.4.6",
     "@tanstack/react-query": "^5.90.20",
+    "@upstash/ratelimit": "^2.0.8",
     "@upstash/realtime": "^1.0.2",
     "@upstash/redis": "^1.36.1",
     "date-fns": "^4.1.0",
@@ -26,11 +29,13 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.6",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.6"
   },
   "ignoreScripts": [
     "sharp",

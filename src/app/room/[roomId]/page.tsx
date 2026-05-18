@@ -3,6 +3,12 @@
 import { useUsername } from "@/hooks/use-username";
 import { useRealtime } from "@/lib/realtime-client";
 import { client } from "@/lib/client";
+import {
+  decryptMessage,
+  encryptMessage,
+  importRoomKey,
+  readKeyFromHash,
+} from "@/lib/crypto";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -27,10 +33,27 @@ const Page = () => {
   const [copyStatus, setCopyStatus] = useState("COPY");
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
+  const [roomKey, setRoomKey] = useState<CryptoKey | null>(null);
+  const [decryptedById, setDecryptedById] = useState<Record<string, string>>(
+    {},
+  );
+
+  useEffect(() => {
+    const b64 = readKeyFromHash(window.location.hash);
+    if (!b64) {
+      router.replace("/?error=missing-key");
+      return;
+    }
+    importRoomKey(b64)
+      .then(setRoomKey)
+      .catch(() => router.replace("/?error=missing-key"));
+  }, [router]);
+
   const { data: ttlData } = useQuery({
     queryKey: ["ttl", roomId],
     queryFn: async () => {
       const res = await client.room.ttl.get({ query: { roomId } });
+      if (!res.data || "error" in res.data) return null;
       return res.data;
     },
   });
@@ -66,15 +89,48 @@ const Page = () => {
       const res = await client.messages.get({
         query: { roomId },
       });
-
+      if (!res.data || "error" in res.data) return null;
       return res.data;
     },
   });
 
+  useEffect(() => {
+    if (!roomKey || !messages?.messages) return;
+
+    const pending = messages.messages.filter((m) => !(m.id in decryptedById));
+    if (pending.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(
+        pending.map(async (m) => {
+          try {
+            const text = await decryptMessage(roomKey, m.ciphertext, m.iv);
+            return [m.id, text] as const;
+          } catch {
+            return [m.id, "⚠ undecryptable"] as const;
+          }
+        }),
+      );
+      if (cancelled) return;
+      setDecryptedById((prev) => {
+        const next = { ...prev };
+        for (const [id, text] of results) next[id] = text;
+        return next;
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [roomKey, messages, decryptedById]);
+
   const { mutate: sendMessage, isPending } = useMutation({
     mutationFn: async ({ text }: { text: string }) => {
+      if (!roomKey) throw new Error("Encryption key not loaded");
+      const { ciphertext, iv } = await encryptMessage(roomKey, text);
       await client.messages.post(
-        { sender: username, text },
+        { sender: username, ciphertext, iv },
         { query: { roomId } },
       );
 
@@ -140,6 +196,23 @@ const Page = () => {
                 : "--:--"}
             </span>
           </div>
+
+          <div className="h-8 w-px bg-zinc-800" />
+
+          <div className="flex flex-col">
+            <span className="text-xs text-zinc-500 uppercase">Encryption</span>
+            <span
+              className={`text-sm font-bold flex items-center gap-1 ${roomKey ? "text-green-500" : "text-zinc-600"}`}
+              title={
+                roomKey
+                  ? "AES-GCM 256 · key in URL fragment, never sent to server"
+                  : "Loading key..."
+              }
+            >
+              <span>🔒</span>
+              <span>{roomKey ? "E2E" : "..."}</span>
+            </span>
+          </div>
         </div>
 
         <button
@@ -161,29 +234,42 @@ const Page = () => {
           </div>
         )}
 
-        {messages?.messages.map((msg) => (
-          <div key={msg.id} className="flex flex-col items-start">
-            <div className="max-w-[80%] group">
-              <div className="flex items-baseline gap-3 mb-1">
-                <span
-                  className={`text-xs font-bold ${
-                    msg.sender === username ? "text-green-500" : "text-blue-500"
+        {messages?.messages.map((msg) => {
+          const plaintext = decryptedById[msg.id];
+          return (
+            <div key={msg.id} className="flex flex-col items-start">
+              <div className="max-w-[80%] group">
+                <div className="flex items-baseline gap-3 mb-1">
+                  <span
+                    className={`text-xs font-bold ${
+                      msg.sender === username
+                        ? "text-green-500"
+                        : "text-blue-500"
+                    }`}
+                  >
+                    {msg.sender === username ? "YOU" : msg.sender}
+                  </span>
+
+                  <span className="text-[10px] text-zinc-600">
+                    {format(msg.timestamp, "HH:mm")}
+                  </span>
+                </div>
+
+                <p
+                  className={`text-sm leading-relaxed break-all ${
+                    plaintext === undefined
+                      ? "text-zinc-600 italic"
+                      : plaintext === "⚠ undecryptable"
+                        ? "text-red-500 italic"
+                        : "text-zinc-300"
                   }`}
                 >
-                  {msg.sender === username ? "YOU" : msg.sender}
-                </span>
-
-                <span className="text-[10px] text-zinc-600">
-                  {format(msg.timestamp, "HH:mm")}
-                </span>
+                  {plaintext ?? "decrypting..."}
+                </p>
               </div>
-
-              <p className="text-sm text-zinc-300 leading-relaxed break-all">
-                {msg.text}
-              </p>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="p-4 border-t border-zinc-800 bg-zinc-900/30">
@@ -197,24 +283,28 @@ const Page = () => {
               type="text"
               value={input}
               ref={inputRef}
+              disabled={!roomKey}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && input.trim()) {
+                if (e.key === "Enter" && input.trim() && roomKey) {
                   sendMessage({ text: input });
                   inputRef.current?.focus();
                 }
               }}
-              placeholder="Type message ..."
-              className="w-full bg-black border border-zinc-800 focus:border-zinc-700 focus:outline-none transition-colors text-zinc-100 placeholder:text-zinc-700 py-3 pl-8 pr-4 text-sm"
+              placeholder={
+                roomKey ? "Type message ..." : "Loading encryption key..."
+              }
+              className="w-full bg-black border border-zinc-800 focus:border-zinc-700 focus:outline-none transition-colors text-zinc-100 placeholder:text-zinc-700 py-3 pl-8 pr-4 text-sm disabled:opacity-50"
             />
           </div>
 
           <button
             onClick={() => {
+              if (!roomKey) return;
               sendMessage({ text: input });
               inputRef.current?.focus();
             }}
-            disabled={!input.trim() || isPending}
+            disabled={!input.trim() || isPending || !roomKey}
             className="bg-zinc-800 text-zinc-400 px-6 text-sm font-bold hover:text-zinc-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             SEND
