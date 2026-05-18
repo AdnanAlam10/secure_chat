@@ -2,9 +2,9 @@
 
 A private, self-destructing 1-on-1 chat room with **end-to-end encryption**. The server stores ciphertext only — even with full database access, an attacker cannot read messages.
 
-> _add a demo GIF here_
+https://github.com/user-attachments/assets/1430f706-a876-4047-be1e-63019b24b5ef
 
-**Live demo:** _add your Vercel URL here_
+**Live demo:** [secure-chat-liart.vercel.app](https://secure-chat-liart.vercel.app/)
 
 ## Highlights
 
@@ -19,9 +19,9 @@ A private, self-destructing 1-on-1 chat room with **end-to-end encryption**. The
 
 ```
 ┌─────────┐                ┌────────────┐               ┌─────────┐
-│ Browser │ ── ciphertext ─▶│   Next.js  │── REST/Lua ──▶│  Redis  │
-│         │ ◀── ciphertext ─│   + Elysia │◀──            │(Upstash)│
-└─────────┘                 └────────────┘               └─────────┘
+│ Browser │ ── ciphertext─▶│   Next.js  │── REST/Lua ──▶│  Redis  │
+│         │ ◀── ciphertext─│   + Elysia │◀──            │(Upstash)│
+└─────────┘                └────────────┘               └─────────┘
      │                            ▲
      │                            │
      └─── realtime (SSE) ─────────┘
@@ -36,12 +36,12 @@ A private, self-destructing 1-on-1 chat room with **end-to-end encryption**. The
 
 ## Threat model
 
-| Capability                                            | Attacker can read messages? |
-| ----------------------------------------------------- | --------------------------- |
-| Full Redis dump / compromised server / malicious host | **No.** Ciphertext only.    |
-| Passive network MITM (between client and server)      | **No.** Ciphertext only.    |
-| Active MITM serving modified app code                 | Yes — they own the client.  |
-| User shares the full URL (including `#k=...`)         | Yes — the key is the secret.|
+| Capability                                            | Attacker can read messages?                                                                                                                           |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full Redis dump / compromised server / malicious host | **No.** Ciphertext only.                                                                                                                              |
+| Passive network MITM (between client and server)      | **No.** Ciphertext only.                                                                                                                              |
+| Active MITM serving modified app code                 | Yes — they own the client.                                                                                                                            |
+| User shares the full URL (including `#k=...`)         | Yes — the key is the secret.                                                                                                                          |
 | XSS injection on the chat app                         | Mitigated by strict CSP `connect-src 'self'`: injected script can read the key from `location.hash` but cannot exfiltrate it to a third-party domain. |
 
 **What the server sees:** sender display name, message timestamps, ciphertext blob, IV, room ID, and which (opaque) session tokens are in which room.
@@ -63,7 +63,7 @@ See [`src/lib/crypto.ts`](src/lib/crypto.ts).
 
 **Atomic room join via Lua.** The 2-user cap could be bypassed by two concurrent joiners both passing the check before either writes back. The proxy runs an `EVAL` script that performs the check-then-add inside Redis, eliminating the race. See [`src/proxy.ts`](src/proxy.ts).
 
-**Wall-clock countdown.** The self-destruct timer reads an `expiresAt` timestamp once and recomputes `(expiresAt - Date.now()) / 1000` each tick, instead of decrementing a counter. This avoids drift when the tab sleeps. See [`src/app/room/[roomId]/page.tsx`](<src/app/room/[roomId]/page.tsx>).
+**Wall-clock countdown.** The self-destruct timer reads an `expiresAt` timestamp once and recomputes `(expiresAt - Date.now()) / 1000` each tick, instead of decrementing a counter. This avoids drift when the tab sleeps. See [`src/app/room/[roomId]/page.tsx`](src/app/room/[roomId]/page.tsx).
 
 **Elysia in a Next.js route handler.** End-to-end types via `treaty<App>` give the client compile-time guarantees on the API surface, with Zod runtime validation on bodies and queries. Auth is implemented as a scoped Elysia plugin with a typed `AuthError`.
 
